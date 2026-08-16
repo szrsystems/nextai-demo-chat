@@ -1,0 +1,13 @@
+{
+  "name": "nextai-demo-chat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NextAI weboldali bemutato chat backend (Gemini)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
