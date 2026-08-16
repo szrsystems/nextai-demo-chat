@@ -22,6 +22,7 @@ const IP_ORA_MAX  = parseInt(process.env.IP_HOURLY_MAX || '25', 10);
 const MAX_BE      = 300;   /* karakter, egy uzenet */
 const MAX_ELOZMENY = 8;    /* forduló, amit visszakuldunk a modellnek */
 const IDOKORLAT   = 8000;  /* ms */
+const TESZT_TOKEN = process.env.TESZT_TOKEN || '';   /* ideiglenes onteszt vegpont, utana torold */
 
 /* ---------- szamlalok (memoriaban, ujrainditaskor nullazodik) ---------- */
 let napiNap = '', napiDb = 0;
@@ -204,6 +205,30 @@ const kiszolgalo = http.createServer(function (req, res) {
     return valaszol(res, 200, {
       ok: true, modell: MODELL, kulcs: !!KULCS, napi: napiDb, napiMax: NAPI_MAX
     }, origin);
+  }
+
+  /* ---------- onteszt: csak akkor el, ha be van allitva a TESZT_TOKEN ----------
+     Arra valo, hogy kulso boengeszo nelkul is ellenorizni lehessen a modell valaszat.
+     Ha a TESZT_TOKEN nincs beallitva, a vegpont nem letezik. Teszteles utan torold. */
+  if (ut === '/onteszt') {
+    const par = new URL(req.url, 'http://x').searchParams;
+    if (!TESZT_TOKEN || par.get('token') !== TESZT_TOKEN) {
+      return valaszol(res, 404, { ok: false, hiba: 'nincs ilyen vegpont' }, origin);
+    }
+    if (!KULCS) return valaszol(res, 503, { ok: false, hiba: 'nincs kulcs' }, origin);
+    if (!napiEngedely()) return valaszol(res, 429, { ok: false, hiba: 'napi keret elfogyott' }, origin);
+    const q = szemelytelenit(String(par.get('q') || '')).slice(0, MAX_BE).trim();
+    const vt = PROFIL[par.get('v')] ? par.get('v') : 'fogaszat';
+    if (!q) return valaszol(res, 400, { ok: false, hiba: 'ures kerdes' }, origin);
+    return gemini(rendszerPrompt(vt), [{ role: 'user', parts: [{ text: q }] }], true)
+      .then(function (ny) {
+        const k = tisztitKimenet(ny);
+        valaszol(res, 200, { ok: true, kerdes: q, vertikal: vt, valasz: k.szoveg, kontakt: k.kontakt }, origin);
+      })
+      .catch(function (h) {
+        console.error('ONTESZT HIBA:', h.message);
+        valaszol(res, 502, { ok: false, hiba: h.message.slice(0, 300) }, origin);
+      });
   }
 
   if (ut !== '/chat' || req.method !== 'POST') {
